@@ -7,6 +7,8 @@ import (
 	"github.com/qavaleria/go_final_project/tasks"
 	"log"
 	"net/http"
+	"strings"
+
 	//"strconv"
 	"time"
 )
@@ -222,36 +224,56 @@ func HandleGetTasks(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
-		rows, err := db.Query(`SELECT id, date, title, comment, repeat FROM scheduler ORDER BY date LIMIT ?`, LimitDB)
+		search := r.URL.Query().Get("search")
+		var rows *sql.Rows
+		var err error
+
+		if search != "" {
+			// Проверяем, является ли строка датой в формате 02.01.2006
+			if searchDate, err := time.Parse("02.01.2006", search); err == nil {
+				// Поиск по дате
+				searchDateStr := searchDate.Format(tasks.FormatDate)
+				rows, err = db.Query(`SELECT id, date, title, comment, repeat FROM scheduler WHERE date = ? ORDER BY date LIMIT ?`, searchDateStr, LimitDB)
+			} else {
+				// Поиск по заголовку или комментарию с учетом регистра
+				search = "%" + strings.ToLower(search) + "%"
+				rows, err = db.Query(`SELECT id, date, title, comment, repeat FROM scheduler WHERE LOWER(title) LIKE ? OR LOWER(comment) LIKE ? ORDER BY date LIMIT ?`, search, search, LimitDB)
+			}
+		} else {
+			// Если параметр search не указан, выбираем все задачи
+			rows, err = db.Query(`SELECT id, date, title, comment, repeat FROM scheduler ORDER BY date LIMIT ?`, LimitDB)
+		}
+
 		if err != nil {
 			log.Printf("Ошибка выполнения запроса: %v", err)
-			http.Error(w, "Ошибка выполнения запроса: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, `{"error": "Ошибка выполнения запроса"}`, http.StatusInternalServerError)
 			return
 		}
 		defer rows.Close()
 
-		tasks := []models.Task{} // Инициализируем пустой слайс
-
+		var tasks []models.Task
 		for rows.Next() {
 			var task models.Task
-			if err := rows.Scan(&task.ID, &task.Date, &task.Title, &task.Comment, &task.Repeat); err != nil {
-				log.Printf("Ошибка чтения строки: %v", err)
-				http.Error(w, "Ошибка чтения строки: "+err.Error(), http.StatusInternalServerError)
+			err := rows.Scan(&task.ID, &task.Date, &task.Title, &task.Comment, &task.Repeat)
+			if err != nil {
+				log.Printf("Ошибка чтения данных: %v", err)
+				http.Error(w, `{"error": "Ошибка чтения данных"}`, http.StatusInternalServerError)
 				return
 			}
 			tasks = append(tasks, task)
 		}
 
-		if err := rows.Err(); err != nil {
-			log.Printf("Ошибка обработки результата: %v", err)
-			http.Error(w, "Ошибка обработки результата: "+err.Error(), http.StatusInternalServerError)
+		if err = rows.Err(); err != nil {
+			log.Printf("Ошибка чтения данных: %v", err)
+			http.Error(w, `{"error": "Ошибка чтения данных"}`, http.StatusInternalServerError)
 			return
 		}
 
-		response := map[string]interface{}{
-			"tasks": tasks,
+		if tasks == nil {
+			tasks = []models.Task{}
 		}
-		json.NewEncoder(w).Encode(response)
+
+		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": tasks})
 	}
 }
 
