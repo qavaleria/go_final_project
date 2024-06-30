@@ -5,11 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"github.com/qavaleria/go_final_project/models"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
+
+const FormatDate = "20060102"
 
 // NextDate вычисляет следующую дату для задачи в соответствии с правилом повторения
 func NextDate(now time.Time, dateStr string, repeat string) (string, error) {
@@ -17,7 +20,7 @@ func NextDate(now time.Time, dateStr string, repeat string) (string, error) {
 		return "", errors.New("Правило повторения не указано")
 	}
 
-	date, err := time.Parse("20060102", dateStr)
+	date, err := time.Parse(FormatDate, dateStr)
 	if err != nil {
 		return "", fmt.Errorf("Неверный формат даты: %v", err)
 	}
@@ -63,7 +66,7 @@ func NextDate(now time.Time, dateStr string, repeat string) (string, error) {
 		return "", errors.New("Не поддерживаемый формат повторения")
 	}
 
-	return date.Format("20060102"), nil
+	return date.Format(FormatDate), nil
 }
 
 // isLeapYear проверяет, является ли год високосным
@@ -86,9 +89,9 @@ func AddTask(db *sql.DB, task models.Task) (int64, error) {
 	var err error
 	if task.Date == "" {
 		date = time.Now()
-		task.Date = date.Format("20060102")
+		task.Date = date.Format(FormatDate)
 	} else {
-		date, err = time.Parse("20060102", task.Date)
+		date, err = time.Parse(FormatDate, task.Date)
 		if err != nil {
 			return 0, errors.New("Дата представлена в неправильном формате")
 		}
@@ -97,7 +100,7 @@ func AddTask(db *sql.DB, task models.Task) (int64, error) {
 	now := time.Now()
 	if date.Before(now) {
 		if task.Repeat == "" {
-			task.Date = now.Format("20060102")
+			task.Date = now.Format(FormatDate)
 		} else {
 			nextDate, err := NextDate(now, task.Date, task.Repeat)
 			if err != nil {
@@ -139,4 +142,25 @@ func ValidateRepeatRule(repeat string) error {
 	}
 
 	return nil
+}
+
+// HandleNextDate обработчик для API запроса /api/nextdate
+func HandleNextDate(w http.ResponseWriter, r *http.Request) {
+	nowStr := r.FormValue("now")
+	dateStr := r.FormValue("date")
+	repeat := r.FormValue("repeat")
+
+	now, err := time.Parse(FormatDate, nowStr)
+	if err != nil {
+		http.Error(w, "Invalid now format", http.StatusBadRequest)
+		return
+	}
+
+	nextDate, err := NextDate(now, dateStr, repeat)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Write([]byte(nextDate))
 }

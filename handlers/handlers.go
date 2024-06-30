@@ -3,34 +3,15 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"github.com/qavaleria/go_final_project/models"
 	"github.com/qavaleria/go_final_project/tasks"
+	"log"
 	"net/http"
 	//"strconv"
 	"time"
 )
 
-// HandleNextDate обработчик для API запроса /api/nextdate
-func HandleNextDate(w http.ResponseWriter, r *http.Request) {
-	nowStr := r.FormValue("now")
-	dateStr := r.FormValue("date")
-	repeat := r.FormValue("repeat")
-
-	now, err := time.Parse("20060102", nowStr)
-	if err != nil {
-		http.Error(w, "Invalid now format", http.StatusBadRequest)
-		return
-	}
-
-	nextDate, err := tasks.NextDate(now, dateStr, repeat)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	w.Write([]byte(nextDate))
-}
+const LimitDB = "50"
 
 // обработчик для API запроса /api/task
 func HandleTask(db *sql.DB) http.HandlerFunc {
@@ -42,35 +23,35 @@ func HandleTask(db *sql.DB) http.HandlerFunc {
 			var task models.Task
 			err := json.NewDecoder(r.Body).Decode(&task)
 			if err != nil {
-				fmt.Println("Ошибка десериализации JSON: ", err)
+				log.Printf("Ошибка десериализации JSON: %v", err)
 				http.Error(w, "Ошибка десериализации JSON: "+err.Error(), http.StatusBadRequest)
 				return
 			}
 
 			if task.Title == "" {
-				fmt.Println("Не указан заголовок задачи")
+				log.Printf("Не указан заголовок задачи")
 				http.Error(w, "Не указан заголовок задачи", http.StatusBadRequest)
 				return
 			}
 
 			now := time.Now()
 			if task.Date == "" {
-				task.Date = now.Format("20060102")
+				task.Date = now.Format(tasks.FormatDate)
 			} else {
-				date, err := time.Parse("20060102", task.Date)
+				date, err := time.Parse(tasks.FormatDate, task.Date)
 				if err != nil {
-					fmt.Println("Дата представлена в неправильном формате")
+					log.Printf("Дата представлена в неправильном формате")
 					http.Error(w, "Дата представлена в неправильном формате", http.StatusBadRequest)
 					return
 				}
 
 				if date.Before(now) {
 					if task.Repeat == "" {
-						task.Date = now.Format("20060102")
+						task.Date = now.Format(tasks.FormatDate)
 					} else {
 						nextDate, err := tasks.NextDate(now, task.Date, task.Repeat)
 						if err != nil {
-							fmt.Println("Ошибка вычисления следующей даты: ", err)
+							log.Printf("Ошибка вычисления следующей даты:  %v", err)
 							http.Error(w, "Ошибка вычисления следующей даты: "+err.Error(), http.StatusBadRequest)
 							return
 						}
@@ -81,24 +62,24 @@ func HandleTask(db *sql.DB) http.HandlerFunc {
 
 			if task.Repeat != "" {
 				if err := tasks.ValidateRepeatRule(task.Repeat); err != nil {
-					fmt.Println("Правило повторения указано в неправильном формате")
+					log.Printf("Правило повторения указано в неправильном формате")
 					http.Error(w, "Правило повторения указано в неправильном формате", http.StatusBadRequest)
 					return
 				}
 
 				nextDate, err := tasks.NextDate(now, task.Date, task.Repeat)
 				if err != nil {
-					fmt.Println("Ошибка вычисления следующей даты: ", err)
+					log.Printf("Ошибка вычисления следующей даты: %v", err)
 					http.Error(w, "Ошибка вычисления следующей даты: "+err.Error(), http.StatusBadRequest)
 					return
 				}
 				task.Date = nextDate
-				fmt.Println("Cледующая даты: ", nextDate)
+				log.Printf("Cледующая дата: %s", nextDate)
 			}
 
 			id, err := tasks.AddTask(db, task)
 			if err != nil {
-				fmt.Println("Ошибка добавления задачи: ", err)
+				log.Printf("Ошибка добавления задачи: %v", err)
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
@@ -121,7 +102,7 @@ func HandleTask(db *sql.DB) http.HandlerFunc {
 				if err == sql.ErrNoRows {
 					http.Error(w, `{"error": "Задача не найдена"}`, http.StatusNotFound)
 				} else {
-					fmt.Println("Ошибка выполнения запроса: ", err)
+					log.Printf("Ошибка выполнения запроса: %v", err)
 					http.Error(w, `{"error": "Ошибка выполнения запроса"}`, http.StatusInternalServerError)
 				}
 				return
@@ -131,41 +112,41 @@ func HandleTask(db *sql.DB) http.HandlerFunc {
 			var task models.Task
 			err := json.NewDecoder(r.Body).Decode(&task)
 			if err != nil {
-				fmt.Println("Ошибка десериализации JSON: ", err)
+				log.Printf("Ошибка десериализации JSON: %v", err)
 				http.Error(w, `{"error": "Ошибка десериализации JSON"}`, http.StatusBadRequest)
 				return
 			}
 
 			if task.ID == "" {
-				fmt.Println("Не указан идентификатор задачи")
+				log.Printf("Не указан идентификатор задачи")
 				http.Error(w, `{"error": "Не указан идентификатор задачи"}`, http.StatusBadRequest)
 				return
 			}
 
 			if task.Title == "" {
-				fmt.Println("Не указан заголовок задачи")
+				log.Printf("Не указан заголовок задачи")
 				http.Error(w, `{"error": "Не указан заголовок задачи"}`, http.StatusBadRequest)
 				return
 			}
 
 			now := time.Now()
 			if task.Date == "" {
-				task.Date = now.Format("20060102")
+				task.Date = now.Format(tasks.FormatDate)
 			} else {
-				date, err := time.Parse("20060102", task.Date)
+				date, err := time.Parse(tasks.FormatDate, task.Date)
 				if err != nil {
-					fmt.Println("Дата представлена в неправильном формате")
+					log.Printf("Дата представлена в неправильном формате")
 					http.Error(w, `{"error": "Дата представлена в неправильном формате"}`, http.StatusBadRequest)
 					return
 				}
 
 				if date.Before(now) {
 					if task.Repeat == "" {
-						task.Date = now.Format("20060102")
+						task.Date = now.Format(tasks.FormatDate)
 					} else {
 						nextDate, err := tasks.NextDate(now, task.Date, task.Repeat)
 						if err != nil {
-							fmt.Println("Ошибка вычисления следующей даты: ", err)
+							log.Printf("Ошибка вычисления следующей даты: %v", err)
 							http.Error(w, `{"error": "Ошибка вычисления следующей даты"}`, http.StatusBadRequest)
 							return
 						}
@@ -176,7 +157,7 @@ func HandleTask(db *sql.DB) http.HandlerFunc {
 
 			if task.Repeat != "" {
 				if err := tasks.ValidateRepeatRule(task.Repeat); err != nil {
-					fmt.Println("Правило повторения указано в неправильном формате")
+					log.Printf("Правило повторения указано в неправильном формате")
 					http.Error(w, `{"error": "Правило повторения указано в неправильном формате"}`, http.StatusBadRequest)
 					return
 				}
@@ -185,14 +166,14 @@ func HandleTask(db *sql.DB) http.HandlerFunc {
 			query := `UPDATE scheduler SET date = ?, title = ?, comment = ?, repeat = ? WHERE id = ?`
 			res, err := db.Exec(query, task.Date, task.Title, task.Comment, task.Repeat, task.ID)
 			if err != nil {
-				fmt.Println("Ошибка выполнения запроса: ", err)
+				log.Printf("Ошибка выполнения запроса: %v", err)
 				http.Error(w, `{"error": "Ошибка выполнения запроса"}`, http.StatusInternalServerError)
 				return
 			}
 
 			rowsAffected, err := res.RowsAffected()
 			if err != nil {
-				fmt.Println("Ошибка получения результата запроса: ", err)
+				log.Printf("Ошибка получения результата запроса: %v", err)
 				http.Error(w, `{"error": "Ошибка получения результата запроса"}`, http.StatusInternalServerError)
 				return
 			}
@@ -213,14 +194,14 @@ func HandleTask(db *sql.DB) http.HandlerFunc {
 			deleteQuery := `DELETE FROM scheduler WHERE id = ?`
 			res, err := db.Exec(deleteQuery, id)
 			if err != nil {
-				fmt.Println("Ошибка выполнения запроса: ", err)
+				log.Printf("Ошибка выполнения запроса: %v", err)
 				http.Error(w, `{"error": "Ошибка выполнения запроса"}`, http.StatusInternalServerError)
 				return
 			}
 
 			rowsAffected, err := res.RowsAffected()
 			if err != nil {
-				fmt.Println("Ошибка получения результата запроса: ", err)
+				log.Printf("Ошибка получения результата запроса: %v", err)
 				http.Error(w, `{"error": "Ошибка получения результата запроса"}`, http.StatusInternalServerError)
 				return
 			}
@@ -241,9 +222,9 @@ func HandleGetTasks(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
-		rows, err := db.Query(`SELECT id, date, title, comment, repeat FROM scheduler ORDER BY date LIMIT 50`)
+		rows, err := db.Query(`SELECT id, date, title, comment, repeat FROM scheduler ORDER BY date LIMIT ?`, LimitDB)
 		if err != nil {
-			fmt.Println("Ошибка выполнения запроса: ", err)
+			log.Printf("Ошибка выполнения запроса: %v", err)
 			http.Error(w, "Ошибка выполнения запроса: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -254,7 +235,7 @@ func HandleGetTasks(db *sql.DB) http.HandlerFunc {
 		for rows.Next() {
 			var task models.Task
 			if err := rows.Scan(&task.ID, &task.Date, &task.Title, &task.Comment, &task.Repeat); err != nil {
-				fmt.Println("Ошибка чтения строки: ", err)
+				log.Printf("Ошибка чтения строки: %v", err)
 				http.Error(w, "Ошибка чтения строки: "+err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -262,7 +243,7 @@ func HandleGetTasks(db *sql.DB) http.HandlerFunc {
 		}
 
 		if err := rows.Err(); err != nil {
-			fmt.Println("Ошибка обработки результата: ", err)
+			log.Printf("Ошибка обработки результата: %v", err)
 			http.Error(w, "Ошибка обработки результата: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -291,7 +272,7 @@ func HandleMarkTaskDone(db *sql.DB) http.HandlerFunc {
 			if err == sql.ErrNoRows {
 				http.Error(w, `{"error": "Задача не найдена"}`, http.StatusNotFound)
 			} else {
-				fmt.Println("Ошибка выполнения запроса: ", err)
+				log.Printf("Ошибка выполнения запроса: %v", err)
 				http.Error(w, `{"error": "Ошибка выполнения запроса"}`, http.StatusInternalServerError)
 			}
 			return
@@ -302,7 +283,7 @@ func HandleMarkTaskDone(db *sql.DB) http.HandlerFunc {
 			deleteQuery := `DELETE FROM scheduler WHERE id = ?`
 			_, err := db.Exec(deleteQuery, id)
 			if err != nil {
-				fmt.Println("Ошибка удаления задачи: ", err)
+				log.Printf("Ошибка удаления задачи: %v", err)
 				http.Error(w, `{"error": "Ошибка удаления задачи"}`, http.StatusInternalServerError)
 				return
 			}
@@ -311,7 +292,7 @@ func HandleMarkTaskDone(db *sql.DB) http.HandlerFunc {
 			now := time.Now()
 			nextDate, err := tasks.NextDate(now, task.Date, task.Repeat)
 			if err != nil {
-				fmt.Println("Ошибка вычисления следующей даты: ", err)
+				log.Printf("Ошибка вычисления следующей даты: %v", err)
 				http.Error(w, `{"error": "Ошибка вычисления следующей даты"}`, http.StatusInternalServerError)
 				return
 			}
@@ -320,7 +301,7 @@ func HandleMarkTaskDone(db *sql.DB) http.HandlerFunc {
 			updateQuery := `UPDATE scheduler SET date = ? WHERE id = ?`
 			_, err = db.Exec(updateQuery, nextDate, id)
 			if err != nil {
-				fmt.Println("Ошибка обновления задачи: ", err)
+				log.Printf("Ошибка обновления задачи: %v", err)
 				http.Error(w, `{"error": "Ошибка обновления задачи"}`, http.StatusInternalServerError)
 				return
 			}
