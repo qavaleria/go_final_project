@@ -28,9 +28,9 @@ func GetTasks(db *sqlx.DB, search string, limit int) ([]models.Task, error) {
 				return nil, err
 			}
 		} else {
-			search = "%" + strings.ToLower(search) + "%"
+			//search = "%" + strings.ToLower(search) + "%"
 			rows, err = db.NamedQuery(`SELECT id, date, title, comment, repeat FROM scheduler WHERE LOWER(title) LIKE :search OR LOWER(comment) LIKE :search ORDER BY date LIMIT :limit`, map[string]interface{}{
-				"search": search,
+				"search": "%" + search + "%",
 				"limit":  limit,
 			})
 			if err != nil {
@@ -58,7 +58,7 @@ func GetTasks(db *sqlx.DB, search string, limit int) ([]models.Task, error) {
 	var tasks []models.Task
 	for rows.Next() {
 		var task models.Task
-		err := rows.StructScan(&task)
+		err := rows.Scan(&task.ID, &task.Date, &task.Title, &task.Comment, &task.Repeat)
 		if err != nil {
 			log.Printf("Ошибка сканирования строки: %v", err)
 			return nil, err
