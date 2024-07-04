@@ -58,7 +58,7 @@ func GetTasks(db *sqlx.DB, search string, limit int) ([]models.Task, error) {
 	var tasks []models.Task
 	for rows.Next() {
 		var task models.Task
-		err := rows.Scan(&task.ID, &task.Date, &task.Title, &task.Comment, &task.Repeat)
+		err := rows.StructScan(&task)
 		if err != nil {
 			log.Printf("Ошибка сканирования строки: %v", err)
 			return nil, err
