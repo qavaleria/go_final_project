@@ -1,7 +1,7 @@
 package database
 
 import (
-	"database/sql"
+	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
 	"os"
 )
@@ -9,7 +9,7 @@ import (
 const dbFileName = "scheduler.db"
 
 // InitializeDatabase проверяет существование файла базы данных и создает таблицу, если необходимо
-func InitializeDatabase() (*sql.DB, error) {
+func InitializeDatabase() (*sqlx.DB, error) {
 	if _, err := os.Stat(dbFileName); os.IsNotExist(err) {
 		file, err := os.Create(dbFileName)
 		if err != nil {
@@ -18,7 +18,7 @@ func InitializeDatabase() (*sql.DB, error) {
 		file.Close()
 	}
 
-	db, err := sql.Open("sqlite3", dbFileName)
+	db, err := sqlx.Connect("sqlite3", dbFileName)
 	if err != nil {
 		return nil, err
 	}

@@ -30,12 +30,10 @@ func main() {
 
 	// Добавляем обработчик API для вычисления следующей даты
 	r.Get("/api/nextdate", handlers.HandleNextDate)
-
-	r.MethodFunc(http.MethodPost, "/api/task", handlers.HandleTask(db))
-	r.MethodFunc(http.MethodGet, "/api/task", handlers.HandleTask(db))
-	r.MethodFunc(http.MethodPut, "/api/task", handlers.HandleTask(db))
-	r.MethodFunc(http.MethodDelete, "/api/task", handlers.HandleTask(db))
-
+	r.MethodFunc(http.MethodGet, "/api/task", handlers.HandleGetTask(db))
+	r.MethodFunc(http.MethodPut, "/api/task", handlers.HandleUpdateTask(db))
+	r.MethodFunc(http.MethodDelete, "/api/task", handlers.HandleDeleteTask(db))
+	r.MethodFunc(http.MethodPost, "/api/task", handlers.HandleAddTask(db))
 	r.MethodFunc(http.MethodGet, "/api/tasks", handlers.HandleGetTasks(db))
 	r.MethodFunc(http.MethodPost, "/api/task/done", handlers.HandleMarkTaskDone(db))
 
